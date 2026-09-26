@@ -1,0 +1,28 @@
+# clash-pool 示例配置
+# 复制为 config.yaml 后修改
+
+# clash 订阅源列表（机场订阅 / 公开聚合订阅 URL）
+subscriptions:
+  # - "https://example.com/api/v1/client/subscribe?token=xxx"
+  # - "https://raw.githubusercontent.com/xxx/xxx/main/clash.yaml"
+
+# 测速验活
+check:
+  # 延迟测试 URL（204 探测地址）
+  test_url: "https://www.gstatic.com/generate_204"
+  # 单节点超时（毫秒）
+  timeout_ms: 5000
+  # 存活节点最大延迟（毫秒），超过则剔除
+  max_delay_ms: 3000
+  # 定时复测间隔（分钟），0 表示只跑一次
+  interval_min: 30
+
+# 输出
+output:
+  # 代理池 HTTP API 监听地址
+  #   GET /get    随机取一个存活节点
+  #   GET /all    全部存活节点
+  #   GET /count  存活节点数量
+  api_addr: "127.0.0.1:8080"
+  # 生成新订阅文件的路径（可直接导入 clash 客户端）
+  sub_file: "pool.yaml"

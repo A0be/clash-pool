@@ -1,0 +1,22 @@
+# 二进制
+clash-pool
+clash-pool.exe
+
+# 运行产物
+config.yaml
+pool.yaml
+data/
+logs/
+
+# mihomo 内核
+mihomo
+mihomo*.gz
+
+# Go
+*.test
+*.out
+vendor/
+
+# IDE
+.idea/
+.vscode/
