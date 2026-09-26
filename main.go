@@ -3,62 +3,26 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/A0be/clash-pool/internal/config"
+	"github.com/A0be/clash-pool/internal/fetch"
+	"github.com/A0be/clash-pool/internal/parse"
 )
 
-// Config clash-pool 主配置
-type Config struct {
-	// Subscriptions clash 订阅源列表（机场订阅 / 公开聚合订阅）
-	Subscriptions []string `yaml:"subscriptions"`
-	// Check 测速验活配置
-	Check struct {
-		// TestURL 延迟测试 URL
-		TestURL string `yaml:"test_url"`
-		// Timeout 单节点超时（毫秒）
-		Timeout int `yaml:"timeout_ms"`
-		// MaxDelay 存活节点最大延迟（毫秒），超过则剔除
-		MaxDelay int `yaml:"max_delay_ms"`
-		// Interval 定时复测间隔（分钟），0 表示只跑一次
-		Interval int `yaml:"interval_min"`
-	} `yaml:"check"`
-	// Output 输出配置
-	Output struct {
-		// APIAddr 代理池 HTTP API 监听地址（/get /all /count）
-		APIAddr string `yaml:"api_addr"`
-		// SubFile 生成新订阅文件的路径
-		SubFile string `yaml:"sub_file"`
-	} `yaml:"output"`
-}
-
-// defaultConfig 返回内置默认配置
-func defaultConfig() Config {
-	var c Config
-	c.Subscriptions = []string{}
-	c.Check.TestURL = "https://www.gstatic.com/generate_204"
-	c.Check.Timeout = 5000
-	c.Check.MaxDelay = 3000
-	c.Check.Interval = 30
-	c.Output.APIAddr = "127.0.0.1:8080"
-	c.Output.SubFile = "pool.yaml"
-	return c
-}
-
-// loadConfig 从 YAML 文件加载配置，文件不存在时返回默认配置
-func loadConfig(path string) (Config, error) {
-	c := defaultConfig()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return c, nil
+// derivePrefix 订阅源未命名时, 自动用域名或文件名作为节点前缀
+func derivePrefix(source string) string {
+	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+		if u, err := url.Parse(source); err == nil && u.Host != "" {
+			return u.Hostname()
 		}
-		return c, err
 	}
-	if err := yaml.Unmarshal(data, &c); err != nil {
-		return c, fmt.Errorf("解析配置 %s 失败: %w", path, err)
-	}
-	return c, nil
+	base := filepath.Base(source)
+	return strings.TrimSuffix(base, filepath.Ext(base))
 }
 
 func main() {
@@ -69,22 +33,76 @@ func main() {
 		cfgPath = os.Args[1]
 	}
 
-	cfg, err := loadConfig(cfgPath)
+	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		log.Fatalf("加载配置失败: %v", err)
 	}
+	if len(cfg.Subscriptions) == 0 {
+		log.Fatalf("未配置订阅源: 请复制 config.example.yaml 为 config.yaml 并填入 subscriptions")
+	}
 
-	log.Printf("clash-pool 启动")
-	log.Printf("  订阅源数量: %d", len(cfg.Subscriptions))
-	log.Printf("  测速 URL: %s (超时 %dms, 剔除延迟 >%dms)",
-		cfg.Check.TestURL, cfg.Check.Timeout, cfg.Check.MaxDelay)
-	log.Printf("  API 监听: %s", cfg.Output.APIAddr)
-	log.Printf("  订阅输出: %s", cfg.Output.SubFile)
+	log.Printf("clash-pool 启动: %d 个订阅源", len(cfg.Subscriptions))
 
-	// TODO(阶段1): fetcher — 拉取订阅
-	// TODO(阶段1): parser — 解析 Clash YAML / Base64 分享链接并去重
-	// TODO(阶段2): checker — 管理 mihomo 内核子进程, 通过 external-controller API 并发测速
-	// TODO(阶段3): pool — 存活节点池, 输出新订阅 + HTTP API
-	// TODO(阶段4): 定时循环刷新
-	log.Printf("功能开发中: 订阅拉取/解析、mihomo 测速验活、代理池输出将按路线图逐步实现")
+	// 阶段 1: 逐源拉取 → 解析 → 过滤假节点 → 加来源前缀
+	var all []map[string]any
+	fakeTotal := 0
+	for i, sub := range cfg.Subscriptions {
+		prefix := sub.Name
+		if prefix == "" {
+			prefix = derivePrefix(sub.URL)
+		}
+
+		content, err := fetch.Fetch(sub.URL)
+		if err != nil {
+			log.Printf("[%d/%d] %s 拉取失败: %v", i+1, len(cfg.Subscriptions), sub.URL, err)
+			continue
+		}
+		proxies, err := parse.Parse(content)
+		if err != nil {
+			log.Printf("[%d/%d] %s 解析失败: %v", i+1, len(cfg.Subscriptions), sub.URL, err)
+			continue
+		}
+		proxies, fake := parse.FilterFake(proxies)
+		fakeTotal += fake
+		proxies = parse.ApplyPrefix(proxies, prefix)
+		all = append(all, proxies...)
+		log.Printf("[%d/%d] %s: 解析 %d 个节点(过滤假节点 %d 个)",
+			i+1, len(cfg.Subscriptions), prefix, len(proxies), fake)
+	}
+	if len(all) == 0 {
+		log.Fatalf("所有订阅源均未解析出节点")
+	}
+
+	// 跨订阅源严格去重 + 同名节点追加序号
+	total := len(all)
+	all, dup := parse.Dedup(all)
+	parse.UniquifyNames(all)
+
+	// 协议分布统计
+	byType := map[string]int{}
+	for _, p := range all {
+		byType[parse.Str(p, "type")]++
+	}
+	var parts []string
+	for tp, n := range byType {
+		parts = append(parts, fmt.Sprintf("%s=%d", tp, n))
+	}
+	sort.Strings(parts)
+
+	log.Printf("汇总: 原始 %d 个节点, 过滤假节点 %d 个, 去重 %d 个, 最终保留 %d 个",
+		total+fakeTotal+dup, fakeTotal, dup, len(all))
+	log.Printf("协议分布: %s", strings.Join(parts, ", "))
+	for i, p := range all {
+		if i >= 5 {
+			break
+		}
+		log.Printf("  示例: %s (%s, %s:%v)",
+			parse.Str(p, "name"), parse.Str(p, "type"), parse.Str(p, "server"), p["port"])
+	}
+
+	// TODO(阶段2): checker — 管理 mihomo 内核, 通过 external-controller API 并发测速验活(支持多测试 URL)
+	// TODO(阶段3): pool — 输出 Clash YAML / 分享链接 / Base64 订阅 + HTTP API(支持地区/协议筛选)
+	// TODO(阶段4): 定时循环 + 状态持久化(节点状态 YAML + 延迟历史 SQLite) + Web 面板
+	// TODO(阶段5, 可选): TG 频道/网页节点抓取
+	log.Printf("阶段 1 完成: 订阅拉取与解析; 下一步开发 mihomo 测速验活")
 }
