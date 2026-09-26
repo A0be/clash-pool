@@ -24,12 +24,24 @@ check:
   # 定时复测间隔(分钟), 0 表示只跑一次
   interval_min: 30
 
+# SOCKS5/HTTP 直连入口
+serve:
+  # 混合代理端口(SOCKS5+HTTP 二合一), 客户端直连此端口即走代理池,
+  # 流量自动经 POOL 组(url-test)选择当前延迟最低的存活节点; 0 = 关闭
+  mixed_port: 7890
+
 # 输出
 output:
   # 代理池 HTTP API 监听地址
-  #   GET /get    随机取一个存活节点
-  #   GET /all    全部存活节点
-  #   GET /count  存活节点数量
+  #   GET /get            随机取一个存活节点(参数 region=HK/SG/JP/US... type=ss/vmess...)
+  #   GET /all            全部存活节点(同上参数)
+  #   GET /count          存活节点数量
   api_addr: "127.0.0.1:8080"
-  # 生成新订阅文件的路径(可直接导入 clash 客户端)
+  # API 访问令牌(可选, 为空不认证; 设置后需 ?token=xxx 或 X-API-Token 头)
+  api_token: ""
+  # 生成新 Clash 订阅文件的路径(含 POOL 自动选择组, 可直接导入客户端)
   sub_file: "pool.yaml"
+  # 分享链接文本输出路径(每行一条 ss:// vmess:// 等)
+  links_file: "pool-links.txt"
+  # Base64 订阅输出路径
+  b64_file: "pool-b64.txt"

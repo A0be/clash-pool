@@ -116,7 +116,7 @@ func parseVMess(link string) (map[string]any, error) {
 		return nil, errors.New("vmess 链接缺少服务器或 UUID")
 	}
 
-	port := toInt(v.Port)
+	port := ToInt(v.Port)
 	if port == 0 {
 		return nil, errors.New("vmess 链接端口无效")
 	}
@@ -127,7 +127,7 @@ func parseVMess(link string) (map[string]any, error) {
 
 	m := map[string]any{
 		"name": v.PS, "type": "vmess", "server": v.Add, "port": port,
-		"uuid": v.ID, "alterId": toInt(v.Aid), "cipher": cipher, "udp": true,
+		"uuid": v.ID, "alterId": ToInt(v.Aid), "cipher": cipher, "udp": true,
 	}
 
 	if v.TLS == "tls" {
@@ -175,7 +175,7 @@ func parseTrojan(link string) (map[string]any, error) {
 	if password == "" {
 		return nil, errors.New("trojan 链接缺少密码")
 	}
-	port := toInt(u.Port())
+	port := ToInt(u.Port())
 	if port == 0 {
 		port = 443
 	}
@@ -211,7 +211,7 @@ func parseVless(link string) (map[string]any, error) {
 	if uuid == "" {
 		return nil, errors.New("vless 链接缺少 UUID")
 	}
-	port := toInt(u.Port())
+	port := ToInt(u.Port())
 	if port == 0 {
 		port = 443
 	}
@@ -261,7 +261,7 @@ func parseHysteria2(link string) (map[string]any, error) {
 	if auth == "" {
 		return nil, errors.New("hysteria2 链接缺少认证密码")
 	}
-	port := toInt(u.Port())
+	port := ToInt(u.Port())
 	if port == 0 {
 		port = 443
 	}

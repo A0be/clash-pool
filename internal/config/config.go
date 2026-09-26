@@ -31,12 +31,23 @@ type Config struct {
 		// Interval 定时复测间隔(分钟), 0 表示只跑一次
 		Interval int `yaml:"interval_min"`
 	} `yaml:"check"`
+	// Serve 常驻代理入口配置
+	Serve struct {
+		// MixedPort SOCKS5+HTTP 混合代理端口, 客户端直连即走代理池; 0 = 关闭
+		MixedPort int `yaml:"mixed_port"`
+	} `yaml:"serve"`
 	// Output 输出配置
 	Output struct {
 		// APIAddr 代理池 HTTP API 监听地址(/get /all /count)
 		APIAddr string `yaml:"api_addr"`
-		// SubFile 生成新订阅文件的路径
+		// APIToken API 访问令牌, 为空不认证; 设置后需 ?token= 或 X-API-Token 头
+		APIToken string `yaml:"api_token"`
+		// SubFile 生成新 Clash 订阅文件的路径
 		SubFile string `yaml:"sub_file"`
+		// LinksFile 分享链接文本输出路径(每行一条)
+		LinksFile string `yaml:"links_file"`
+		// B64File Base64 订阅输出路径
+		B64File string `yaml:"b64_file"`
 	} `yaml:"output"`
 }
 
@@ -49,8 +60,12 @@ func Default() Config {
 	c.Check.MaxDelay = 3000
 	c.Check.Concurrency = 50
 	c.Check.Interval = 30
+	c.Serve.MixedPort = 7890
 	c.Output.APIAddr = "127.0.0.1:8080"
+	c.Output.APIToken = ""
 	c.Output.SubFile = "pool.yaml"
+	c.Output.LinksFile = "pool-links.txt"
+	c.Output.B64File = "pool-b64.txt"
 	return c
 }
 

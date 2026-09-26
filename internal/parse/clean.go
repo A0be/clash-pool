@@ -41,7 +41,7 @@ func dedupKey(p map[string]any) string {
 	if cred == "" {
 		cred = Str(p, "password")
 	}
-	return fmt.Sprintf("%s|%s|%d|%s", Str(p, "type"), Str(p, "server"), toInt(p["port"]), cred)
+	return fmt.Sprintf("%s|%s|%d|%s", Str(p, "type"), Str(p, "server"), ToInt(p["port"]), cred)
 }
 
 // ApplyPrefix 为节点名添加来源前缀: "[来源] 原名"
@@ -88,8 +88,8 @@ func Str(m map[string]any, key string) string {
 	}
 }
 
-// toInt 宽松地把 YAML/JSON 中的数字表示转为 int
-func toInt(v any) int {
+// ToInt 宽松地把 YAML/JSON 中的数字表示转为 int
+func ToInt(v any) int {
 	switch n := v.(type) {
 	case int:
 		return n
