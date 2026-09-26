@@ -117,3 +117,29 @@ func (p *Pool) Get(region, typ string) *Node {
 func (p *Pool) Count(region, typ string) int {
 	return len(p.Filter(region, typ))
 }
+
+// Replace 原子替换池内全部节点(定时循环刷新时调用)
+func (p *Pool) Replace(nodes []Node) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.nodes = nodes
+}
+
+// Stats 池统计信息
+type Stats struct {
+	Total   int            `json:"total"`
+	Regions map[string]int `json:"regions"`
+	Types   map[string]int `json:"types"`
+}
+
+// Stats 返回当前池的地区/协议分布统计
+func (p *Pool) Stats() Stats {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	s := Stats{Total: len(p.nodes), Regions: map[string]int{}, Types: map[string]int{}}
+	for _, n := range p.nodes {
+		s.Regions[n.Region]++
+		s.Types[n.Type]++
+	}
+	return s
+}

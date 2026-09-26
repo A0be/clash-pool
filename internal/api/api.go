@@ -15,6 +15,26 @@ import (
 // Listen 启动 HTTP API(阻塞直到服务退出)
 func Listen(p *pool.Pool, addr, token string) {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" { // 未注册路径 → 404
+			http.NotFound(w, r)
+			return
+		}
+		if !authorized(r, token) {
+			w.Header().Set("WWW-Authenticate", `Basic realm="clash-pool"`)
+			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(statusPage))
+	})
+	mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(r, token) {
+			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
+			return
+		}
+		writeJSON(w, http.StatusOK, p.Stats())
+	})
 	mux.HandleFunc("/get", func(w http.ResponseWriter, r *http.Request) {
 		handleGet(w, r, p, token)
 	})
