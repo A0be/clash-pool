@@ -26,6 +26,8 @@ type Config struct {
 		Timeout int `yaml:"timeout_ms"`
 		// MaxDelay 存活节点最大延迟(毫秒), 超过则剔除
 		MaxDelay int `yaml:"max_delay_ms"`
+		// Concurrency 并发测速数
+		Concurrency int `yaml:"concurrency"`
 		// Interval 定时复测间隔(分钟), 0 表示只跑一次
 		Interval int `yaml:"interval_min"`
 	} `yaml:"check"`
@@ -45,6 +47,7 @@ func Default() Config {
 	c.Check.TestURL = "https://www.gstatic.com/generate_204"
 	c.Check.Timeout = 5000
 	c.Check.MaxDelay = 3000
+	c.Check.Concurrency = 50
 	c.Check.Interval = 30
 	c.Output.APIAddr = "127.0.0.1:8080"
 	c.Output.SubFile = "pool.yaml"

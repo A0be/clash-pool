@@ -9,6 +9,7 @@ data/
 logs/
 
 # mihomo 内核
+bin/
 mihomo
 mihomo*.gz
 

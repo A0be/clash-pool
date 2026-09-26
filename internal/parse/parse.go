@@ -39,7 +39,11 @@ func parseClashYAML(content []byte) ([]map[string]any, error) {
 
 	var proxies []map[string]any
 	for _, p := range doc.Proxies {
-		// 缺少必要字段的条目直接跳过
+		// direct 类型无 server/port 字段, 其余类型三者缺一不可
+		if Str(p, "type") == "direct" {
+			proxies = append(proxies, p)
+			continue
+		}
 		if Str(p, "type") == "" || Str(p, "server") == "" || toInt(p["port"]) == 0 {
 			continue
 		}

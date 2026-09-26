@@ -19,6 +19,8 @@ check:
   timeout_ms: 5000
   # 存活节点最大延迟(毫秒), 超过则剔除
   max_delay_ms: 3000
+  # 并发测速数(建议 50, 网络弱可调低)
+  concurrency: 50
   # 定时复测间隔(分钟), 0 表示只跑一次
   interval_min: 30
 

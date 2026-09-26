@@ -55,6 +55,15 @@ func ApplyPrefix(proxies []map[string]any, prefix string) []map[string]any {
 	return proxies
 }
 
+// EnsureNames 为空名节点填充默认名称 node-{序号}, 避免 mihomo 校验失败
+func EnsureNames(proxies []map[string]any) {
+	for i, p := range proxies {
+		if Str(p, "name") == "" {
+			p["name"] = fmt.Sprintf("node-%d", i+1)
+		}
+	}
+}
+
 // UniquifyNames 对同名节点追加序号(原名 / 原名-2 / 原名-3 ...)
 func UniquifyNames(proxies []map[string]any) {
 	count := map[string]int{}

@@ -9,8 +9,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/A0be/clash-pool/internal/checker"
 	"github.com/A0be/clash-pool/internal/config"
 	"github.com/A0be/clash-pool/internal/fetch"
+	"github.com/A0be/clash-pool/internal/mihomo"
 	"github.com/A0be/clash-pool/internal/parse"
 )
 
@@ -64,6 +66,7 @@ func main() {
 		}
 		proxies, fake := parse.FilterFake(proxies)
 		fakeTotal += fake
+		parse.EnsureNames(proxies)
 		proxies = parse.ApplyPrefix(proxies, prefix)
 		all = append(all, proxies...)
 		log.Printf("[%d/%d] %s: 解析 %d 个节点(过滤假节点 %d 个)",
@@ -100,9 +103,40 @@ func main() {
 			parse.Str(p, "name"), parse.Str(p, "type"), parse.Str(p, "server"), p["port"])
 	}
 
-	// TODO(阶段2): checker — 管理 mihomo 内核, 通过 external-controller API 并发测速验活(支持多测试 URL)
+	// 阶段 2: mihomo 内核 + 并发测速验活
+	binary, err := mihomo.EnsureKernel("bin")
+	if err != nil {
+		log.Fatalf("获取 mihomo 内核失败: %v", err)
+	}
+	log.Printf("使用 mihomo 内核: %s", binary)
+
+	alive, dead, err := checker.Run(all, checker.Options{
+		Binary:      binary,
+		WorkDir:     "data",
+		TestURL:     cfg.Check.TestURL,
+		TimeoutMS:   cfg.Check.Timeout,
+		MaxDelayMS:  cfg.Check.MaxDelay,
+		Concurrency: cfg.Check.Concurrency,
+	})
+	if err != nil {
+		log.Fatalf("测速验活失败: %v", err)
+	}
+	log.Printf("测速完成: 存活 %d / 失效 %d (测试 URL: %s, 并发 %d, 剔除延迟 >%dms)",
+		len(alive), len(dead), cfg.Check.TestURL, cfg.Check.Concurrency, cfg.Check.MaxDelay)
+
+	for i, r := range alive {
+		if i >= 10 {
+			log.Printf("  ... 其余 %d 个存活节点省略", len(alive)-10)
+			break
+		}
+		log.Printf("  #%d %s → %dms", i+1, parse.Str(r.Proxy, "name"), r.DelayMS)
+	}
+	if len(alive) == 0 {
+		log.Fatalf("无存活节点, 代理池为空")
+	}
+
 	// TODO(阶段3): pool — 输出 Clash YAML / 分享链接 / Base64 订阅 + HTTP API(支持地区/协议筛选)
 	// TODO(阶段4): 定时循环 + 状态持久化(节点状态 YAML + 延迟历史 SQLite) + Web 面板
 	// TODO(阶段5, 可选): TG 频道/网页节点抓取
-	log.Printf("阶段 1 完成: 订阅拉取与解析; 下一步开发 mihomo 测速验活")
+	log.Printf("阶段 2 完成: mihomo 测速验活; 下一步开发代理池输出")
 }
